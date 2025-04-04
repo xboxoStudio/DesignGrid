@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enhanced Design Grid Generator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      display: flex;
+    }
+    .side-panel {
+      width: 300px;
+      margin-right: 20px;
+    }
+    .side-panel h2 {
+      font-size: 18px;
+      margin-bottom: 10px;
+    }
+    .side-panel label {
+      display: block;
+      margin-bottom: 5px;
+      font-size: 14px;
+    }
+    .side-panel input[type="number"], .side-panel input[type="range"], .side-panel select {
+      width: 100%;
+      margin-bottom: 15px;
+    }
+    .drawing-area-wrapper {
+      flex-grow: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      background: #f0f0f0;
+      padding: 20px;
+      border: 2px dashed #ccc;
+    }
+    .drawing-area {
+      border: 2px solid #333;
+      position: relative;
+      background: #fff;
+    }
+    .block {
+      position: absolute;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      text-align: center;
+      font-size: 8px;
+      padding: 2px;
+      box-sizing: border-box;
+      border: 0.5mm solid #000;
+      transition: all 0.1s ease;
+    }
+    .block .separator {
+      width: 100%;
+      height: 1px;
+      background-color: black;
+      margin: 2px 0;
+    }
+    .block .text {
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="side-panel">
+    <h2>Page Settings</h2>
+    <label for="pageSize">Page Size:</label>
+    <select id="pageSize">
+      <option value="custom">Custom</option>
+      <option value="A4">A4 (210mm x 297mm)</option>
+      <option value="A3">A3 (297mm x 420mm)</option>
+      <option value="A2">A2 (420mm x 594mm)</option>
+      <option value="A1">A1 (594mm x 841mm)</option>
+    </select>
+
+    <label for="pageWidth">Page Width (mm):</label>
+    <input type="number" id="pageWidth" value="210">
+    <label for="pageHeight">Page Height (mm):</label>
+    <input type="number" id="pageHeight" value="297">
+    <label for="margin">Margins (mm):</label>
+    <input type="number" id="margin" value="10">
+
+    <h2>Block Settings</h2>
+    <label for="blockWidth">Block Width (mm):</label>
+    <input type="number" id="blockWidth" value="50">
+    <label for="blockHeight">Block Height (mm):</label>
+    <input type="number" id="blockHeight" value="50">
+    <label>
+      <input type="checkbox" id="aspectRatioLock"> Keep Aspect Ratio
+    </label>
+
+    <label for="gap">Gap Between Blocks (mm):</label>
+    <input type="number" id="gap" value="2">
+
+    <h2>Styling</h2>
+    <label for="opacity">Opacity:</label>
+    <input type="range" id="opacity" min="0.1" max="1" step="0.1" value="1">
+
+    <label for="cornerRadius">Corner Radius (mm):</label>
+    <input type="range" id="cornerRadius" min="0" max="10" value="0">
+
+    <h2>Prefix & Suffix</h2>
+    <label for="projectName">Project Name:</label>
+    <input type="text" id="projectName" value="DesignIdea">
+    <label for="prefixType">Prefix Type:</label>
+    <select id="prefixType">
+      <option value="alphabet">Alphabet (A, B, C)</option>
+      <option value="number">Number (1, 2, 3)</option>
+    </select>
+    <label for="suffix">Suffix:</label>
+    <input type="text" id="suffix" value="Ref">
+
+    <button id="downloadGrid" style="margin-top: 20px;">Download for Print</button>
+  </div>
+
+  <div class="drawing-area-wrapper">
+    <div id="drawingArea" class="drawing-area"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+  <script>
+    const aspectRatioLock = document.getElementById('aspectRatioLock');
+    const pageSizeSelect = document.getElementById('pageSize');
+
+    let aspectRatio = 1; // Default aspect ratio (1:1)
+
+    const pageSizes = {
+      A4: { width: 210, height: 297 },
+      A3: { width: 297, height: 420 },
+      A2: { width: 420, height: 594 },
+      A1: { width: 594, height: 841 },
+    };
+
+    pageSizeSelect.addEventListener('change', () => {
+      const selectedSize = pageSizeSelect.value;
+      if (selectedSize === 'custom') {
+        return;
+      }
+      const { width, height } = pageSizes[selectedSize];
+      document.getElementById('pageWidth').value = width;
+      document.getElementById('pageHeight').value = height;
+      generateGrid();
+    });
+
+    function generateGrid() {
+      const projectName = document.getElementById('projectName').value.trim();
+      const prefixType = document.getElementById('prefixType').value;
+      const suffix = document.getElementById('suffix').value.trim();
+      const pageWidth = parseFloat(document.getElementById('pageWidth').value);
+      const pageHeight = parseFloat(document.getElementById('pageHeight').value);
+      const blockWidth = parseFloat(document.getElementById('blockWidth').value);
+      const blockHeight = parseFloat(document.getElementById('blockHeight').value);
+      const margin = parseFloat(document.getElementById('margin').value);
+      const opacity = parseFloat(document.getElementById('opacity').value);
+      const cornerRadius = parseFloat(document.getElementById('cornerRadius').value);
+      const gap = parseFloat(document.getElementById('gap').value);
+      const drawingArea = document.getElementById('drawingArea');
+
+      const mmToPx = 3.7795275591;
+      const pageWidthPx = pageWidth * mmToPx;
+      const pageHeightPx = pageHeight * mmToPx;
+      const blockWidthPx = blockWidth * mmToPx;
+      const blockHeightPx = blockHeight * mmToPx;
+      const marginPx = margin * mmToPx;
+      const gapPx = gap * mmToPx;
+
+      drawingArea.style.width = `${pageWidthPx - 2 * marginPx}px`;
+      drawingArea.style.height = `${pageHeightPx - 2 * marginPx}px`;
+
+      drawingArea.innerHTML = '';
+      drawingArea.style.position = 'relative';
+
+      const cols = Math.floor((pageWidthPx - 2 * marginPx + gapPx) / (blockWidthPx + gapPx));
+      const rows = Math.floor((pageHeightPx - 2 * marginPx + gapPx) / (blockHeightPx + gapPx));
+
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const block = document.createElement('div');
+          block.className = 'block';
+          block.style.width = `${blockWidthPx}px`;
+          block.style.height = `${blockHeightPx}px`;
+          block.style.left = `${col * (blockWidthPx + gapPx)}px`;
+          block.style.top = `${row * (blockHeightPx + gapPx)}px`;
+          block.style.position = 'absolute';
+          block.style.opacity = opacity;
+          block.style.borderRadius = `${cornerRadius * mmToPx}px`;
+
+          const prefix =
+            prefixType === 'alphabet'
+              ? String.fromCharCode(65 + col % 26)
+              : col + 1;
+          const rowLabel = row + 1;
+
+          block.innerHTML = `
+            <div class="separator"></div>
+            <div class="text">${projectName}${prefix}${rowLabel}${suffix}</div>
+          `;
+          drawingArea.appendChild(block);
+        }
+      }
+    }
+
+    const controls = document.querySelectorAll('input, select');
+    controls.forEach(control => control.addEventListener('input', generateGrid));
+    generateGrid();
+  </script>
+</body>
+</html>
