@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Enhanced Design Grid Generator</title>
+  <title>Advanced Design Grid Generator</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -23,7 +23,7 @@
       margin-bottom: 5px;
       font-size: 14px;
     }
-    .side-panel input[type="number"], .side-panel input[type="range"], .side-panel select {
+    .side-panel input[type="number"], .side-panel input[type="range"] {
       width: 100%;
       margin-bottom: 15px;
     }
@@ -44,9 +44,8 @@
     .block {
       position: absolute;
       display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      align-items: center;
+      justify-content: flex-end;
+      align-items: flex-end;
       text-align: center;
       font-size: 8px;
       padding: 2px;
@@ -54,29 +53,11 @@
       border: 0.5mm solid #000;
       transition: all 0.1s ease;
     }
-    .block .separator {
-      width: 100%;
-      height: 1px;
-      background-color: black;
-      margin: 2px 0;
-    }
-    .block .text {
-      font-size: 10px;
-    }
   </style>
 </head>
 <body>
   <div class="side-panel">
     <h2>Page Settings</h2>
-    <label for="pageSize">Page Size:</label>
-    <select id="pageSize">
-      <option value="custom">Custom</option>
-      <option value="A4">A4 (210mm x 297mm)</option>
-      <option value="A3">A3 (297mm x 420mm)</option>
-      <option value="A2">A2 (420mm x 594mm)</option>
-      <option value="A1">A1 (594mm x 841mm)</option>
-    </select>
-
     <label for="pageWidth">Page Width (mm):</label>
     <input type="number" id="pageWidth" value="210">
     <label for="pageHeight">Page Height (mm):</label>
@@ -86,15 +67,20 @@
 
     <h2>Block Settings</h2>
     <label for="blockWidth">Block Width (mm):</label>
-    <input type="number" id="blockWidth" value="50">
+    <input type="number" id="blockWidthManual" value="50">
+    <input type="range" id="blockWidth" min="10" max="100" value="50">
+
     <label for="blockHeight">Block Height (mm):</label>
-    <input type="number" id="blockHeight" value="50">
+    <input type="number" id="blockHeightManual" value="50">
+    <input type="range" id="blockHeight" min="10" max="100" value="50">
+
     <label>
       <input type="checkbox" id="aspectRatioLock"> Keep Aspect Ratio
     </label>
 
     <label for="gap">Gap Between Blocks (mm):</label>
-    <input type="number" id="gap" value="2">
+    <input type="number" id="gapManual" value="2">
+    <input type="range" id="gap" min="0" max="10" value="2">
 
     <h2>Styling</h2>
     <label for="opacity">Opacity:</label>
@@ -124,27 +110,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
   <script>
     const aspectRatioLock = document.getElementById('aspectRatioLock');
-    const pageSizeSelect = document.getElementById('pageSize');
-
-    let aspectRatio = 1; // Default aspect ratio (1:1)
-
-    const pageSizes = {
-      A4: { width: 210, height: 297 },
-      A3: { width: 297, height: 420 },
-      A2: { width: 420, height: 594 },
-      A1: { width: 594, height: 841 },
-    };
-
-    pageSizeSelect.addEventListener('change', () => {
-      const selectedSize = pageSizeSelect.value;
-      if (selectedSize === 'custom') {
-        return;
-      }
-      const { width, height } = pageSizes[selectedSize];
-      document.getElementById('pageWidth').value = width;
-      document.getElementById('pageHeight').value = height;
-      generateGrid();
-    });
 
     function generateGrid() {
       const projectName = document.getElementById('projectName').value.trim();
@@ -160,6 +125,7 @@
       const gap = parseFloat(document.getElementById('gap').value);
       const drawingArea = document.getElementById('drawingArea');
 
+      // Conversion factor: 1mm = 3.7795275591px
       const mmToPx = 3.7795275591;
       const pageWidthPx = pageWidth * mmToPx;
       const pageHeightPx = pageHeight * mmToPx;
@@ -168,15 +134,19 @@
       const marginPx = margin * mmToPx;
       const gapPx = gap * mmToPx;
 
+      // Update drawing area size
       drawingArea.style.width = `${pageWidthPx - 2 * marginPx}px`;
       drawingArea.style.height = `${pageHeightPx - 2 * marginPx}px`;
 
+      // Clear existing blocks
       drawingArea.innerHTML = '';
       drawingArea.style.position = 'relative';
 
+      // Calculate grid dimensions
       const cols = Math.floor((pageWidthPx - 2 * marginPx + gapPx) / (blockWidthPx + gapPx));
       const rows = Math.floor((pageHeightPx - 2 * marginPx + gapPx) / (blockHeightPx + gapPx));
 
+      // Generate blocks
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < cols; col++) {
           const block = document.createElement('div');
@@ -189,24 +159,82 @@
           block.style.opacity = opacity;
           block.style.borderRadius = `${cornerRadius * mmToPx}px`;
 
+          // Generate prefix based on type
           const prefix =
             prefixType === 'alphabet'
-              ? String.fromCharCode(65 + col % 26)
-              : col + 1;
-          const rowLabel = row + 1;
-
-          block.innerHTML = `
-            <div class="separator"></div>
-            <div class="text">${projectName}${prefix}${rowLabel}${suffix}</div>
-          `;
+              ? String.fromCharCode(65 + col % 26) // A, B, C, ...
+              : col + 1; // 1, 2, 3, ...
+          const rowLabel = row + 1; // Row numbers
+          block.innerHTML = `${projectName}${prefix}${rowLabel}${suffix}`;
           drawingArea.appendChild(block);
         }
       }
     }
 
-    const controls = document.querySelectorAll('input, select');
+    // Sync manual inputs and sliders
+    function syncInputs() {
+      document.getElementById('blockWidthManual').value = document.getElementById('blockWidth').value;
+      document.getElementById('blockHeightManual').value = document.getElementById('blockHeight').value;
+      document.getElementById('gapManual').value = document.getElementById('gap').value;
+    }
+
+    // Aspect ratio locking
+    document.getElementById('blockWidth').addEventListener('input', (e) => {
+      if (aspectRatioLock.checked) {
+        document.getElementById('blockHeight').value = e.target.value;
+      }
+      syncInputs();
+      generateGrid();
+    });
+
+    document.getElementById('blockHeight').addEventListener('input', (e) => {
+      if (aspectRatioLock.checked) {
+        document.getElementById('blockWidth').value = e.target.value;
+      }
+      syncInputs();
+      generateGrid();
+    });
+
+    document.getElementById('gap').addEventListener('input', (e) => {
+      document.getElementById('gapManual').value = e.target.value;
+      generateGrid();
+    });
+
+    // Other controls
+    const controls = document.querySelectorAll('input[type="number"], input[type="range"], select');
     controls.forEach(control => control.addEventListener('input', generateGrid));
+
+    // Initial grid
     generateGrid();
+
+    // Download PDF
+    document.getElementById('downloadGrid').addEventListener('click', function () {
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4',
+      });
+
+      const blocks = document.querySelectorAll('.block');
+      const margin = parseFloat(document.getElementById('margin').value);
+
+      pdf.setPage(1);
+      pdf.setDrawColor(0);
+      pdf.setFillColor(255);
+
+      blocks.forEach((block) => {
+        const x = parseFloat(block.style.left) / 3.7795275591 + margin;
+        const y = parseFloat(block.style.top) / 3.7795275591 + margin;
+        const width = parseFloat(block.style.width) / 3.7795275591;
+        const height = parseFloat(block.style.height) / 3.7795275591;
+
+        pdf.rect(x, y, width, height);
+        pdf.text(block.innerHTML, x + 2, y + height - 2);
+      });
+
+      pdf.save('Grid.pdf');
+    });
   </script>
 </body>
 </html>
